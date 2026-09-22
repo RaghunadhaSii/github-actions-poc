@@ -1,4 +1,4 @@
-name: Java Build and Test
+name: GitHub Actions CI/CD Pipeline
 
 on:
   push:
@@ -17,21 +17,54 @@ jobs:
 
     steps:
 
-      - name: Checkout source code
+      - name: Stage 1 - Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Java 17
+      - name: Stage 2 - Setup Java
         uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "17"
           cache: maven
 
-      - name: Build and Test
-        run: |
-          mvn clean package
-      - name: Upload JAR
+      - name: Stage 3 - Maven build
+        run: mvn clean compile
+
+      - name: Stage 4 - Unit tests
+        run: mvn test
+
+      - name: Stage 5 - Create JAR
+        run: mvn package -DskipTests
+
+      - name: Stage 6 - Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: my-app-jar
           path: target/*.jar
+
+      - name: Stage 7 - Deploy to local server
+        shell: bash
+        run: |
+          nohup java -jar target/*.jar > application.log 2>&1 &
+          echo $! > application.pid
+          echo "Application PID: $(cat application.pid)"
+
+      - name: Stage 8 - Health check
+        shell: bash
+        run: |
+          for attempt in {1..30}; do
+            if curl --fail --silent http://localhost:8080/health; then
+              echo
+              echo "Health check passed."
+              kill "$(cat application.pid)" || true
+              exit 0
+            fi
+
+            echo "Health check attempt $attempt failed; waiting 2 seconds."
+            sleep 2
+          done
+
+          echo "Health check failed. Application log:"
+          cat application.log
+          kill "$(cat application.pid)" || true
+          exit 1
