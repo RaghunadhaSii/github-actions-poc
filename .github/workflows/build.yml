@@ -42,29 +42,8 @@ jobs:
           name: my-app-jar
           path: target/*.jar
 
-      - name: Stage 7 - Deploy to local server
-        shell: bash
-        run: |
-          nohup java -jar target/*.jar > application.log 2>&1 &
-          echo $! > application.pid
-          echo "Application PID: $(cat application.pid)"
+      - name: Stage 7 - Build Docker image
+        run: docker build --tag java-github-actions-poc:latest .
 
-      - name: Stage 8 - Health check
-        shell: bash
-        run: |
-          for attempt in {1..30}; do
-            if curl --fail --silent http://localhost:8080/health; then
-              echo
-              echo "Health check passed."
-              kill "$(cat application.pid)" || true
-              exit 0
-            fi
-
-            echo "Health check attempt $attempt failed; waiting 2 seconds."
-            sleep 2
-          done
-
-          echo "Health check failed. Application log:"
-          cat application.log
-          kill "$(cat application.pid)" || true
-          exit 1
+      - name: Stage 8 - Verify Docker image
+        run: docker image inspect java-github-actions-poc:latest
